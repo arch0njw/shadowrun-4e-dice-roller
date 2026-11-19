@@ -9,6 +9,9 @@ server, no dependencies to install. It pulls Three.js, Cannon.js, and two
 Google fonts from public CDNs at load time; everything else is inline in the
 one HTML file.
 
+It's also hosted for free via GitHub Pages:
+**https://arch0njw.github.io/shadowrun-4e-dice-roller/**
+
 ## Features
 
 - **Dice pool, Edge, and Threshold** fields with steppers (`pool` 1–30,
