@@ -1,6 +1,6 @@
 # 09 GM Hidden Rolls
 
-Status: draft. Depends on: 07, 08. Blocks: none.
+Status: draft. Depends on: 07, 08. Blocks: 10.
 
 ## Goal
 

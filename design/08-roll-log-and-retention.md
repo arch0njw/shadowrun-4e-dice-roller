@@ -1,6 +1,6 @@
 # 08 Roll Log and 30 Day Retention
 
-Status: draft. Depends on: 07. Blocks: none.
+Status: draft. Depends on: 07. Blocks: 09.
 
 ## Goal
 

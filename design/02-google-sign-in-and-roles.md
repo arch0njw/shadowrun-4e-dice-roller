@@ -108,6 +108,10 @@ Same as the AWS 02, with Worker-specific verification:
 - `GET /api/me` returns `{ id, email, displayName, avatarUrl, roles, status }` or 401. One join query loads user, roles and session together.
 - Disabling a user or removing a role takes effect on the next request. For open WebSockets, the Worker calls each of the user's team Durable Objects to close their sockets with code 4001 (06 provides the team list, 07 implements the close).
 
+## Sign-in rate limiting (pulled forward from 10)
+
+`POST /api/auth/google` is the first unauthenticated, internet-reachable endpoint this app has, so it is throttled from the start rather than waiting for story 10's general hardening pass. A small `RateLimiter` Durable Object, keyed by a hash of the client IP, allows 10 attempts per minute; an attempt over the limit gets 429. This is the same mechanism story 10 item D reuses for other endpoints (WebSocket connects, etc.) once they exist.
+
 ## CSRF and origin checks
 
 Same as the AWS 02: state-changing endpoints require `Content-Type: application/json` and an `Origin` equal to the app origin; WebSocket upgrades require the cookie and an allowed `Origin`. No tokens in URLs.
@@ -151,6 +155,7 @@ Same as the AWS 02: signed-out screen with the Google button and "Access is by i
 9. A POST with a foreign `Origin` returns 403.
 10. `npm run user:add` creates a gm and a player and refuses a second admin.
 11. Measured Worker CPU for sign-in stays under the free-plan limit confirmed in 01.
+12. An 11th sign-in attempt within a minute from the same IP hash returns 429.
 
 ## Test plan
 

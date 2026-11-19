@@ -42,8 +42,8 @@ Acceptance: a client modified to report wrong faces causes a `disputed` mark whe
 
 ## D. Rate limiting and abuse
 
-- Sign-in attempts: a small `RateLimiter` Durable Object keyed by a hash of the client IP allows 10 attempts per minute. Cloudflare's own rate limiting products are not assumed to be free.
-- WebSocket connects: 20 per minute per user, at most 6 concurrent sockets per user (oldest closed with 1008).
+- Sign-in attempts: rate limited since story 02 (the `RateLimiter` Durable Object, 10 attempts per minute per IP hash). Cloudflare's own rate limiting products are not assumed to be free.
+- WebSocket connects: 20 per minute per user, at most 6 concurrent sockets per user (oldest closed with 1008), using the same `RateLimiter` object.
 - Profile and admin write limits as in 03 and 05.
 - Frame size limit 16 KB, message rate limits inside the team object (07).
 
