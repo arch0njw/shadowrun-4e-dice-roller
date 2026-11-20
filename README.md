@@ -6,8 +6,8 @@ whatever face lands up, not a random-number shortcut.
 
 Open `Shadowrun-4e-Dice-Roller.html` directly in a browser — no build step, no
 server, no dependencies to install. It pulls Three.js, Cannon.js, and two
-Google fonts from public CDNs at load time; everything else is inline in the
-one HTML file.
+Google fonts from public CDNs at load time; everything else is plain
+HTML/CSS/JS in this repo (`css/styles.css`, `js/app.js`).
 
 It's also hosted for free via GitHub Pages:
 **https://arch0njw.github.io/shadowrun-4e-dice-roller/**
