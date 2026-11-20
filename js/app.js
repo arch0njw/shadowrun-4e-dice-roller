@@ -24,10 +24,16 @@ var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 // whether a roll is in flight, and the last roll's outcome (needed to know
 // whether Second Chance is currently legal).
 var S = { pool: 9, edge: 3, edgeLeft: 3, thr: 0, busy: false, last: null, count: 0, log: [], anyCrit: false, explodeSixes: false };
-// Hidden dev/test-only flag: shift-click the "Treat every glitch as
-// critical" checkbox to toggle this without changing the checkbox itself
-// (see the click listener near the other control wiring below).
-var devAnyOneCrit = false;
+// The "Treat every glitch as critical" checkbox (S.anyCrit) still gates
+// whether any of this applies; the skull button next to it cycles which of
+// three interpretations gets applied when checked - see CRIT_MODES and
+// computeResult().
+var CRIT_MODES = [
+  { key: 'glitchCrit', label: 'Treat every glitch as critical' },
+  { key: 'oneGlitch', label: 'Treat every 1 as a glitch' },
+  { key: 'oneCrit', label: 'Treat every 1 as critical' }
+];
+var critModeIndex = 0;
 var dice = [];          // all dice currently on the table
 var wave = null;        // dice currently being thrown
 var instantFlag = false;
@@ -377,19 +383,31 @@ function stepWave(dt) {
 // Shadowrun 4e scoring: a hit is any die showing 5 or 6. A glitch is half
 // (rounded down for an odd pool, e.g. 4 of 9) or more of the *original*
 // pool+edge dice (not counting dice spawned by Push the Limit explosions)
-// showing a 1. A glitch with zero hits is a critical glitch - or, with the
-// "treat every glitch as critical" house rule enabled, any glitch at all
-// counts as critical. The hidden `devAnyOneCrit` test flag goes further,
-// for exercising the critical-glitch overlay on demand: with it on, a
-// single 1 anywhere is enough to force a critical glitch, bypassing the
-// normal half-the-dice threshold entirely.
+// showing a 1. A glitch with zero hits is a critical glitch. When the
+// checkbox is on, which of three interpretations applies is whatever
+// CRIT_MODES[critModeIndex] currently is:
+//   glitchCrit - any glitch counts as critical, even with hits (the normal
+//                house rule, unchanged from the checkbox's original behavior)
+//   oneGlitch  - a single 1 anywhere counts as a glitch (for testing the
+//                plain Glitch badge); criticality still needs zero hits
+//   oneCrit    - a single 1 anywhere forces a critical glitch outright
 function computeResult() {
   var init = dice.filter(function (d) { return d.src !== 'explode'; });
   var ones = init.filter(function (d) { return d.value === 1; }).length;
   var hits = dice.filter(function (d) { return d.value >= 5; }).length;
   var glitch = ones >= Math.floor(init.length / 2);
-  var crit = glitch && (hits === 0 || S.anyCrit);
-  if (devAnyOneCrit && ones >= 1) { glitch = true; crit = true; }
+  var crit = glitch && hits === 0;
+  if (S.anyCrit) {
+    var mode = CRIT_MODES[critModeIndex].key;
+    if (mode === 'glitchCrit') {
+      crit = glitch;
+    } else if (mode === 'oneGlitch') {
+      if (ones >= 1) glitch = true;
+      crit = glitch && hits === 0;
+    } else if (mode === 'oneCrit') {
+      if (ones >= 1) { glitch = true; crit = true; }
+    }
+  }
   return { total: init.length, hits: hits, ones: ones, exploded: dice.length - init.length,
            glitch: glitch, crit: crit, thr: S.thr };
 }
@@ -563,12 +581,20 @@ $('refresh').addEventListener('click', function () { S.edgeLeft = S.edge; refres
 $('roll').addEventListener('click', function () { doRoll('normal'); });
 $('push').addEventListener('click', function () { doRoll('push'); });
 $('second').addEventListener('click', function () { doRoll('second'); });
-// Shift-click toggles the hidden devAnyOneCrit test flag instead of the
-// checkbox itself - preventDefault here cancels the browser's own checkbox
-// toggle (and the 'change' event below never fires), so the control looks
-// and behaves exactly as before to anyone not holding shift.
-$('anyCrit').addEventListener('click', function (e) { if (e.shiftKey) { e.preventDefault(); devAnyOneCrit = !devAnyOneCrit; } });
 $('anyCrit').addEventListener('change', function () { S.anyCrit = $('anyCrit').checked; });
+// The skull button is nested inside the <label>, so clicking it does not
+// also toggle the checkbox (browsers don't forward a label's click-through
+// to a nested interactive element). It only cycles which interpretation
+// the checkbox applies when checked.
+function applyCritModeLabel() {
+  var m = CRIT_MODES[critModeIndex];
+  $('critModeLabel').textContent = m.label;
+  $('critModeCycle').setAttribute('aria-label', 'Test mode: ' + m.label + '. Click to cycle.');
+}
+$('critModeCycle').addEventListener('click', function () {
+  critModeIndex = (critModeIndex + 1) % CRIT_MODES.length;
+  applyCritModeLabel();
+});
 $('explodeSixes').addEventListener('change', function () { S.explodeSixes = $('explodeSixes').checked; });
 $('clearLog').addEventListener('click', function () { S.log = []; renderLog(); });
 stage.addEventListener('click', function () { doRoll('normal'); }); // tapping the tray itself also rolls
@@ -617,7 +643,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-applyTheme(); resize(); refreshUI(); renderLog();
+applyTheme(); resize(); refreshUI(); renderLog(); applyCritModeLabel();
 requestAnimationFrame(frame);
 doRoll('normal', { instant: true, sample: true }); // show a result immediately on load, with no animation
 })();
