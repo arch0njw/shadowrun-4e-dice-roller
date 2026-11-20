@@ -612,7 +612,10 @@ async function doRoll(mode, opts) {
       await startWave(first); decorate(first);
       if (mode === 'push' || S.explodeSixes) await runExplosions(first);
       S.last = { mode: mode, second: false };
-      label = mode === 'push' ? S.pool + '+' + S.edge + 'd6 Push the Limit' : S.pool + 'd6';
+      var diceCount = mode === 'push' ? S.pool + '+' + S.edge + 'd6' : S.pool + 'd6';
+      var initialTotal = S.pool + (mode === 'push' ? S.edge : 0);
+      var expl = dice.length > initialTotal ? ' (expl: ' + dice.length + 'd6)' : '';
+      label = diceCount + expl + (mode === 'push' ? ' Push the Limit' : '');
     }
     var r = computeResult();
     renderResult(r);
