@@ -368,6 +368,28 @@ function spawnDice(srcs, opts) {
 var rackedCount = 0;
 // In-flight rack-slide tweens, stepped once per frame in frame() below.
 var rackAnims = [];
+// Already-racked exploded dice, oldest first - the only dice trimBoard() is
+// allowed to remove when the board gets too full (see below). Pool/edge
+// dice are never queued here, so the initial throw is never removed.
+var explodeRackQueue = [];
+// A long enough run of exploding 6s could in principle add dice forever.
+// BOARD_CAP is the same hard stop already used to end the explosion loop;
+// trimBoard() keeps the board from ever visually filling past half of it by
+// removing the oldest already-resolved exploded dice once that happens.
+// Their contribution to the final result isn't lost - it's moved into
+// bankedHits/bankedExploded, which computeResult() adds back in, so a
+// trimmed die still counts even though it's no longer on the table.
+var BOARD_CAP = 160;
+var bankedHits = 0, bankedExploded = 0;
+function trimBoard() {
+  var cap = Math.floor(BOARD_CAP / 2);
+  while (dice.length > cap && explodeRackQueue.length) {
+    var d = explodeRackQueue.shift();
+    if (d.value >= 5) bankedHits++;
+    bankedExploded++;
+    removeDice([d]);
+  }
+}
 function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
 function stepRackAnims(now) {
   if (!rackAnims.length) return;
@@ -411,6 +433,7 @@ function rackDiceLeft(list) {
   toPlace.forEach(function (d) {
     var s = slot(rackedCount);
     d.racked = true; rackedCount++;
+    if (d.src === 'explode') explodeRackQueue.push(d);
     if (animating) {
       rackAnims.push({ d: d, fromX: d.body.position.x, fromZ: d.body.position.z, toX: s.x, toZ: s.z, start: now, dur: dur });
     } else {
@@ -560,7 +583,7 @@ function stepWave(dt) {
 function computeResult() {
   var init = dice.filter(function (d) { return d.src !== 'explode'; });
   var ones = init.filter(function (d) { return d.value === 1; }).length;
-  var hits = dice.filter(function (d) { return d.value >= 5; }).length;
+  var hits = dice.filter(function (d) { return d.value >= 5; }).length + bankedHits;
   var glitch = ones >= Math.floor(init.length / 2);
   var crit = glitch && hits === 0;
   if (S.anyCrit) {
@@ -574,7 +597,7 @@ function computeResult() {
       if (ones >= 1) { glitch = true; crit = true; }
     }
   }
-  return { total: init.length, hits: hits, ones: ones, exploded: dice.length - init.length,
+  return { total: init.length, hits: hits, ones: ones, exploded: dice.length - init.length + bankedExploded,
            glitch: glitch, crit: crit, thr: S.thr };
 }
 function badge(text, k) {
@@ -626,6 +649,13 @@ function renderLog() {
     if (e.crit || e.glitch) {
       var g = document.createElement('span'); g.className = 'g'; g.textContent = e.crit ? 'Critical glitch' : 'Glitch'; li.appendChild(g);
     }
+    if (e.thr > 0) {
+      var pass = !e.crit && e.hits >= e.thr;
+      var net = e.hits - e.thr;
+      var t = document.createElement('span'); t.className = 'tn';
+      t.textContent = 'TN ' + e.thr + ' [' + (pass ? 'pass' : 'fail') + ', ' + net + ' net]';
+      li.appendChild(t);
+    }
     ol.appendChild(li);
   });
   $('logEmpty').hidden = S.log.length > 0;
@@ -655,13 +685,20 @@ function refreshUI() {
   stage.style.cursor = b ? 'progress' : 'pointer';
 }
 // Every 6 in `list` explodes into one more die, repeating until a wave rolls
-// no sixes (or we hit a safety cap on waves/total dice). Used by Push the
-// Limit always, and by a plain roll too when the "sixes explode on every
-// roll" toggle is on.
+// no sixes, 30 total hits have piled up (HIT_CAP - beyond that, more hits
+// stop being interesting to count), or we hit a safety cap on waves/total
+// dice. Used by Push the Limit always, and by a plain roll too when the
+// "sixes explode on every roll" toggle is on. Each pass also racks the
+// board and, if that leaves it more than half full, trims the oldest
+// already-resolved exploded dice (see trimBoard) so a long explosion chain
+// always has room to keep rolling.
+var HIT_CAP = 30;
+function liveHits() { return bankedHits + dice.filter(function (d) { return d.value >= 5; }).length; }
 async function runExplosions(list) {
   var ex = list.filter(function (d) { return d.value === 6; }).length, guard = 0;
-  while (ex > 0 && guard < 12 && dice.length < 160) {
+  while (ex > 0 && guard < 12 && dice.length < BOARD_CAP && liveHits() < HIT_CAP) {
     var clearFrom = await rackDiceLeft(dice.slice());
+    trimBoard();
     var more = spawnDice(new Array(ex).fill('explode'), { crossMin: clearFrom });
     await startWave(more); decorate(more);
     ex = more.filter(function (d) { return d.value === 6; }).length; guard++;
@@ -692,7 +729,7 @@ async function doRoll(mode, opts) {
       S.last.second = true; label = 'Second Chance';
     } else {
       clearDice();
-      rackedCount = 0; rackAnims = [];
+      rackedCount = 0; rackAnims = []; explodeRackQueue = []; bankedHits = 0; bankedExploded = 0;
       var list = [];
       for (var i = 0; i < S.pool; i++) list.push('pool');
       if (mode === 'push') { S.edgeLeft--; for (var j = 0; j < S.edge; j++) list.push('edge'); }
@@ -702,13 +739,14 @@ async function doRoll(mode, opts) {
       S.last = { mode: mode, second: false };
       var diceCount = mode === 'push' ? S.pool + '+' + S.edge + 'd6' : S.pool + 'd6';
       var initialTotal = S.pool + (mode === 'push' ? S.edge : 0);
-      var expl = dice.length > initialTotal ? ' (expl: ' + dice.length + 'd6)' : '';
+      var trueTotal = dice.length + bankedExploded; // includes dice already trimmed off the board
+      var expl = trueTotal > initialTotal ? ' (expl: ' + trueTotal + 'd6)' : '';
       label = diceCount + expl + (mode === 'push' ? ' Push the Limit' : '');
     }
     var r = computeResult();
     renderResult(r);
     S.count++;
-    S.log.unshift({ n: S.count, label: label + (opts.sample ? ' (sample)' : ''), hits: r.hits, ones: r.ones, glitch: r.glitch, crit: r.crit });
+    S.log.unshift({ n: S.count, label: label + (opts.sample ? ' (sample)' : ''), hits: r.hits, ones: r.ones, glitch: r.glitch, crit: r.crit, thr: r.thr });
     S.log = S.log.slice(0, 40); // cap log length so it doesn't grow unbounded over a long session
     renderLog();
   } finally {
