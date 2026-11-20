@@ -227,16 +227,27 @@ var ringOne = new THREE.MeshBasicMaterial({ color: 0xff6b8d, side: THREE.DoubleS
 // the die counts toward glitches - see computeResult). Dice are laid out in
 // a grid of starting positions along the throw edge so a big pool doesn't
 // spawn all dice stacked on one point.
-function spawnDice(srcs) {
+//
+// `opts.crossMin` narrows that starting grid to begin at a given world X
+// instead of being centered, so a batch can be kept clear of the rackDiceLeft
+// column. It only has an effect when the cross (lateral spread) axis is X -
+// i.e. a portrait-oriented tray, where the rack's left-wall column and the
+// throw's lateral spread share the same axis and would otherwise overlap. In
+// a landscape tray the cross axis is Z, which the X-pinned rack column
+// doesn't occupy, so this is a no-op there.
+function spawnDice(srcs, opts) {
+  opts = opts || {};
   var alongX = arena.aw >= arena.ad;                         // throw along the arena's longer axis
   var alongHalf = (alongX ? arena.aw : arena.ad) / 2, crossDim = alongX ? arena.ad : arena.aw;
-  var usable = Math.max(0, crossDim - 1.6);
+  var crossMin = -crossDim / 2 + 0.8, crossMax = crossDim / 2 - 0.8;
+  if (!alongX && opts.crossMin != null) crossMin = Math.max(crossMin, opts.crossMin);
+  var usable = Math.max(0, crossMax - crossMin);
   var cols = Math.max(1, Math.floor(usable / 1.45) + 1);     // how many dice fit side-by-side across the throw
   var step = cols > 1 ? usable / (cols - 1) : 0;
   var out = [];
   srcs.forEach(function (src, i) {
     var col = i % cols, layer = Math.floor(i / cols);        // wrap extra dice into stacked "layers" above the first row
-    var cross = (col - (cols - 1) / 2) * step + rnd(-0.2, 0.2);
+    var cross = crossMin + col * step + rnd(-0.2, 0.2);
     var along = alongHalf - 1.3 - Math.random() * 0.5;       // start near one edge of the arena
     var y = 1.4 + layer * 1.25 + Math.random() * 0.3;
     var body = new CANNON.Body({ mass: 1, material: matDie });
@@ -258,6 +269,73 @@ function spawnDice(srcs) {
   });
   dirty = true;
   return out;
+}
+// The rack is a queue, not a seating chart: `rackedCount` is how many dice
+// have been placed into it so far this roll (reset alongside clearDice() in
+// doRoll), and each die gets `d.racked = true` once placed. A die already in
+// the queue is never moved again by a later call - only dice not yet racked
+// get sorted (by value, ascending) and appended onto the end of the queue.
+// This is what keeps an earlier explosion wave's dice from visibly
+// reshuffling every time a later wave adds more to the rack.
+var rackedCount = 0;
+// In-flight rack-slide tweens, stepped once per frame in frame() below.
+var rackAnims = [];
+function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+function stepRackAnims(now) {
+  if (!rackAnims.length) return;
+  rackAnims = rackAnims.filter(function (a) {
+    var t = Math.min(1, (now - a.start) / a.dur);
+    var e = easeInOutCubic(t);
+    var x = a.fromX + (a.toX - a.fromX) * e, z = a.fromZ + (a.toZ - a.fromZ) * e;
+    a.d.body.position.x = x; a.d.body.position.z = z;
+    a.d.mesh.position.copy(a.d.body.position);
+    if (a.d.ring) a.d.ring.position.set(x, a.d.ring.position.y, z);
+    return t < 1;
+  });
+  dirty = true;
+}
+// Slides not-yet-racked dice from `list` into a neat queue along the left
+// wall (screen-left = world -X, since the camera has no roll), ordered by
+// value ascending so the lowest value ends up at the top of the screen
+// (screen-top = world -Z, since the camera sits slightly toward +Z looking
+// back at the origin) and the highest at the bottom. Once a column fills up
+// (more dice than fit down the tray's depth), the next one starts over at
+// the top, one die-width to the right. Used before each explosion wave so
+// the new dice have the rest of the tray clear to roll in, instead of
+// landing on top of dice that have already been read. Animates the slide
+// (skipped under reduced motion or the instant-roll flag, like every other
+// animation in this file); never touches a die's rotation, so the face it's
+// showing is unchanged. Returns a promise of the world X just past the
+// rightmost column in use, so a caller can keep new throws clear of it (see
+// spawnDice's `opts.crossMin`).
+function rackDiceLeft(list) {
+  var hw = arena.aw / 2;
+  var usableDepth = Math.max(0, arena.ad - 2);
+  var perCol = Math.max(1, Math.floor(usableDepth / 1.3) + 1);
+  var rowStep = perCol > 1 ? usableDepth / (perCol - 1) : 0;
+  function slot(idx) {
+    var col = Math.floor(idx / perCol), row = idx % perCol;
+    return { x: -hw + 1.3 + col * 1.3, z: -usableDepth / 2 + row * rowStep, col: col };
+  }
+  var toPlace = list.filter(function (d) { return !d.racked; })
+                     .sort(function (a, b) { return a.value - b.value; });
+  var now = performance.now(), dur = 450, animating = !reduceMotion && !instantFlag;
+  toPlace.forEach(function (d) {
+    var s = slot(rackedCount);
+    d.racked = true; rackedCount++;
+    if (animating) {
+      rackAnims.push({ d: d, fromX: d.body.position.x, fromZ: d.body.position.z, toX: s.x, toZ: s.z, start: now, dur: dur });
+    } else {
+      d.body.position.x = s.x; d.body.position.z = s.z;
+      d.mesh.position.copy(d.body.position);
+      if (d.ring) d.ring.position.set(s.x, d.ring.position.y, s.z);
+    }
+  });
+  dirty = true;
+  var lastCol = Math.floor(Math.max(0, rackedCount - 1) / perCol);
+  var clearFrom = -hw + 1.3 + (lastCol + 1) * 1.3; // one more column-width past the last used column
+  if (!toPlace.length || !animating) return Promise.resolve(clearFrom);
+  return new Promise(function (resolve) { setTimeout(function () { resolve(clearFrom); }, dur); });
 }
 // Removes dice from both the physics world and the scene, and from `dice`.
 function removeDice(list) {
@@ -495,7 +573,8 @@ function refreshUI() {
 async function runExplosions(list) {
   var ex = list.filter(function (d) { return d.value === 6; }).length, guard = 0;
   while (ex > 0 && guard < 12 && dice.length < 160) {
-    var more = spawnDice(new Array(ex).fill('explode'));
+    var clearFrom = await rackDiceLeft(dice.slice());
+    var more = spawnDice(new Array(ex).fill('explode'), { crossMin: clearFrom });
     await startWave(more); decorate(more);
     ex = more.filter(function (d) { return d.value === 6; }).length; guard++;
   }
@@ -525,6 +604,7 @@ async function doRoll(mode, opts) {
       S.last.second = true; label = 'Second Chance';
     } else {
       clearDice();
+      rackedCount = 0; rackAnims = [];
       var list = [];
       for (var i = 0; i < S.pool; i++) list.push('pool');
       if (mode === 'push') { S.edgeLeft--; for (var j = 0; j < S.edge; j++) list.push('edge'); }
@@ -639,6 +719,7 @@ var lastT = performance.now();
 function frame(now) {
   var dt = Math.min(0.05, (now - lastT) / 1000); lastT = now; // clamp dt so a tab-switch pause can't fling physics
   if (wave) { stepWave(dt); syncAll(); dirty = true; }
+  stepRackAnims(now);
   if (dirty) { dirty = false; renderer.render(scene, camera); }
   requestAnimationFrame(frame);
 }
