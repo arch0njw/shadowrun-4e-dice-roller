@@ -223,9 +223,11 @@ var PIPS = {   // unused by the current numeral-style faces; kept for a possible
   5: [[0,0],[2,0],[1,1],[0,2],[2,2]], 6: [[0,0],[2,0],[0,1],[2,1],[0,2],[2,2]]
 };
 // Each dice "set" is just a body color per die type plus a function from
-// face value to numeral color. Chummer is the original look (red 1s, green
-// 5/6 hits, amber otherwise); Adept is a gray-bodied set (red 1s, powder
-// blue everything else) matching the physical dice set of the same name.
+// face value to numeral color. Both sets use the same hit/glitch coding -
+// red 1s, bright 5/6 hits, a muted color otherwise - just with different
+// palettes: Chummer is near-black with green hits and amber otherwise;
+// Adept is a sage-gray set with blue hits and black otherwise, matching the
+// physical dice set of the same name.
 var SKINS = {
   chummer: {
     name: 'Chummer',
@@ -234,8 +236,8 @@ var SKINS = {
   },
   adept: {
     name: 'Adept',
-    poolBody: '#6e7378', edgeBody: '#4a5560',
-    numColor: function (v) { return v === 1 ? '#e63946' : '#5fc9ef'; }
+    poolBody: '#6d7568', edgeBody: '#454d42',
+    numColor: function (v) { return v === 1 ? '#e0642a' : (v >= 5 ? '#4fa3e8' : '#1c1c1c'); }
   }
 };
 var currentSkin = 'chummer';
