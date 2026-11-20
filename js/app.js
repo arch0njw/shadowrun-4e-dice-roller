@@ -259,6 +259,31 @@ function spawnDice(srcs) {
   dirty = true;
   return out;
 }
+// Teleports already-settled dice into a neat column along the left wall
+// (screen-left = world -X, since the camera has no roll), top to bottom
+// (screen-top = world -Z, since the camera sits slightly toward +Z looking
+// back at the origin), wrapping into further columns if there isn't room
+// for all of them in one. Used before each explosion wave so the new dice
+// have the rest of the tray clear to roll in, instead of landing on top of
+// dice that have already been read. Only repositions (frozen dice are
+// already static, so this is a plain teleport, not a physics-driven move);
+// it never touches a die's rotation, so the face it's showing is unchanged.
+function rackDiceLeft(list) {
+  if (!list.length) return;
+  var hw = arena.aw / 2;
+  var usableDepth = Math.max(0, arena.ad - 2);
+  var perCol = Math.max(1, Math.floor(usableDepth / 1.3) + 1);
+  var rowStep = perCol > 1 ? usableDepth / (perCol - 1) : 0;
+  list.forEach(function (d, i) {
+    var col = Math.floor(i / perCol), row = i % perCol;
+    var x = -hw + 1.3 + col * 1.3;
+    var z = -usableDepth / 2 + row * rowStep;
+    d.body.position.x = x; d.body.position.z = z;
+    d.mesh.position.copy(d.body.position);
+    if (d.ring) d.ring.position.set(x, d.ring.position.y, z);
+  });
+  dirty = true;
+}
 // Removes dice from both the physics world and the scene, and from `dice`.
 function removeDice(list) {
   var gone = new Set(list);
@@ -495,6 +520,7 @@ function refreshUI() {
 async function runExplosions(list) {
   var ex = list.filter(function (d) { return d.value === 6; }).length, guard = 0;
   while (ex > 0 && guard < 12 && dice.length < 160) {
+    rackDiceLeft(dice.slice());
     var more = spawnDice(new Array(ex).fill('explode'));
     await startWave(more); decorate(more);
     ex = more.filter(function (d) { return d.value === 6; }).length; guard++;
