@@ -227,16 +227,27 @@ var ringOne = new THREE.MeshBasicMaterial({ color: 0xff6b8d, side: THREE.DoubleS
 // the die counts toward glitches - see computeResult). Dice are laid out in
 // a grid of starting positions along the throw edge so a big pool doesn't
 // spawn all dice stacked on one point.
-function spawnDice(srcs) {
+//
+// `opts.crossMin` narrows that starting grid to begin at a given world X
+// instead of being centered, so a batch can be kept clear of the rackDiceLeft
+// column. It only has an effect when the cross (lateral spread) axis is X -
+// i.e. a portrait-oriented tray, where the rack's left-wall column and the
+// throw's lateral spread share the same axis and would otherwise overlap. In
+// a landscape tray the cross axis is Z, which the X-pinned rack column
+// doesn't occupy, so this is a no-op there.
+function spawnDice(srcs, opts) {
+  opts = opts || {};
   var alongX = arena.aw >= arena.ad;                         // throw along the arena's longer axis
   var alongHalf = (alongX ? arena.aw : arena.ad) / 2, crossDim = alongX ? arena.ad : arena.aw;
-  var usable = Math.max(0, crossDim - 1.6);
+  var crossMin = -crossDim / 2 + 0.8, crossMax = crossDim / 2 - 0.8;
+  if (!alongX && opts.crossMin != null) crossMin = Math.max(crossMin, opts.crossMin);
+  var usable = Math.max(0, crossMax - crossMin);
   var cols = Math.max(1, Math.floor(usable / 1.45) + 1);     // how many dice fit side-by-side across the throw
   var step = cols > 1 ? usable / (cols - 1) : 0;
   var out = [];
   srcs.forEach(function (src, i) {
     var col = i % cols, layer = Math.floor(i / cols);        // wrap extra dice into stacked "layers" above the first row
-    var cross = (col - (cols - 1) / 2) * step + rnd(-0.2, 0.2);
+    var cross = crossMin + col * step + rnd(-0.2, 0.2);
     var along = alongHalf - 1.3 - Math.random() * 0.5;       // start near one edge of the arena
     var y = 1.4 + layer * 1.25 + Math.random() * 0.3;
     var body = new CANNON.Body({ mass: 1, material: matDie });
@@ -262,20 +273,26 @@ function spawnDice(srcs) {
 // Teleports already-settled dice into a neat column along the left wall
 // (screen-left = world -X, since the camera has no roll), top to bottom
 // (screen-top = world -Z, since the camera sits slightly toward +Z looking
-// back at the origin), wrapping into further columns if there isn't room
-// for all of them in one. Used before each explosion wave so the new dice
-// have the rest of the tray clear to roll in, instead of landing on top of
-// dice that have already been read. Only repositions (frozen dice are
-// already static, so this is a plain teleport, not a physics-driven move);
-// it never touches a die's rotation, so the face it's showing is unchanged.
+// back at the origin). Once a column fills up (more dice than fit down the
+// tray's depth), the next one starts over at the top, one die-width to the
+// right. Used before each explosion wave so the new dice have the rest of
+// the tray clear to roll in, instead of landing on top of dice that have
+// already been read. Only repositions (frozen dice are already static, so
+// this is a plain teleport, not a physics-driven move); it never touches a
+// die's rotation, so the face it's showing is unchanged.
+//
+// Returns the world X just past the rightmost column in use, so a caller
+// can keep new throws clear of it (see spawnDice's `opts.crossMin`).
 function rackDiceLeft(list) {
-  if (!list.length) return;
   var hw = arena.aw / 2;
+  if (!list.length) return -hw + 1.3;
   var usableDepth = Math.max(0, arena.ad - 2);
   var perCol = Math.max(1, Math.floor(usableDepth / 1.3) + 1);
   var rowStep = perCol > 1 ? usableDepth / (perCol - 1) : 0;
+  var lastCol = 0;
   list.forEach(function (d, i) {
     var col = Math.floor(i / perCol), row = i % perCol;
+    lastCol = Math.max(lastCol, col);
     var x = -hw + 1.3 + col * 1.3;
     var z = -usableDepth / 2 + row * rowStep;
     d.body.position.x = x; d.body.position.z = z;
@@ -283,6 +300,7 @@ function rackDiceLeft(list) {
     if (d.ring) d.ring.position.set(x, d.ring.position.y, z);
   });
   dirty = true;
+  return -hw + 1.3 + (lastCol + 1) * 1.3; // one more column-width past the last used column
 }
 // Removes dice from both the physics world and the scene, and from `dice`.
 function removeDice(list) {
@@ -520,8 +538,8 @@ function refreshUI() {
 async function runExplosions(list) {
   var ex = list.filter(function (d) { return d.value === 6; }).length, guard = 0;
   while (ex > 0 && guard < 12 && dice.length < 160) {
-    rackDiceLeft(dice.slice());
-    var more = spawnDice(new Array(ex).fill('explode'));
+    var clearFrom = rackDiceLeft(dice.slice());
+    var more = spawnDice(new Array(ex).fill('explode'), { crossMin: clearFrom });
     await startWave(more); decorate(more);
     ex = more.filter(function (d) { return d.value === 6; }).length; guard++;
   }
