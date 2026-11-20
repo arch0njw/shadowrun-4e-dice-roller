@@ -105,6 +105,7 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid
 #log .h{font-weight:500;color:var(--hit)}
 #log .g{font-weight:500;color:var(--glitch)}
 .empty{color:var(--muted);font-size:14px;margin:0}
+.version{text-align:center;font:500 11px var(--mono);color:var(--muted);margin:2px 0 0}
 @media (min-width:920px){
   .layout{grid-template-columns:minmax(0,1fr) 380px;align-items:start}
   .stage{height:calc(100vh - 96px);min-height:480px;max-height:900px}
