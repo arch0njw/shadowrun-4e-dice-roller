@@ -27,7 +27,7 @@
         <div class="badges" id="badges"></div>
         <dl class="facts">
           <div><dt>Dice</dt><dd id="fDice">0</dd></div>
-          <div><dt>Ones</dt><dd id="fOnes">0</dd></div>
+          <div><dt>Glitches</dt><dd id="fOnes">0</dd></div>
           <div><dt>Exploded</dt><dd id="fEx">0</dd></div>
         </dl>
       </section>
@@ -54,15 +54,15 @@
       </div>
 
       <details class="card rules">
-        <summary>Rules used</summary>
+        <summary>Dice are simulated physically. The result is the face pointing up once they stop.</summary>
         <ul>
           <li>A hit is a 5 or a 6.</li>
-          <li>A glitch is half or more of the starting dice showing 1. A glitch with no hits is a critical glitch.</li>
+          <li><strong>Glitch</strong>: half of the dice are glitches. <strong>Critical Glitch</strong>: half of the dice are glitches and there are 0 hits.</li>
           <li>Push the Limit spends 1 Edge and adds your Edge rating in dice. Every 6 is rerolled and the new die counts too, repeating. Exploded dice are not counted for glitches.</li>
           <li>Second Chance spends 1 Edge and rerolls every die that is not a hit. It is not available after Push the Limit.</li>
-          <li>Dice are simulated physically. The result is the face pointing up once they stop.</li>
         </ul>
         <label for="anyCrit"><input type="checkbox" id="anyCrit"> Treat every glitch as critical</label>
+        <label for="explodeSixes"><input type="checkbox" id="explodeSixes"> Sixes explode on every roll, not just Push the Limit</label>
       </details>
 
       <section class="card" aria-label="Roll log">
