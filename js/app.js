@@ -222,31 +222,66 @@ var PIPS = {   // unused by the current numeral-style faces; kept for a possible
   1: [[1,1]], 2: [[0,0],[2,2]], 3: [[0,0],[1,1],[2,2]], 4: [[0,0],[2,0],[0,2],[2,2]],
   5: [[0,0],[2,0],[1,1],[0,2],[2,2]], 6: [[0,0],[2,0],[0,1],[2,1],[0,2],[2,2]]
 };
+// Each dice "set" is just a body color per die type plus a function from
+// face value to numeral color. Chummer is the original look (red 1s, green
+// 5/6 hits, amber otherwise); Adept is a gray-bodied set (red 1s, powder
+// blue everything else) matching the physical dice set of the same name.
+var SKINS = {
+  chummer: {
+    name: 'Chummer',
+    poolBody: '#26282b', edgeBody: '#1d2c45',
+    numColor: function (v) { return v === 1 ? '#e0242a' : (v >= 5 ? '#2fd117' : '#f5a30f'); }
+  },
+  adept: {
+    name: 'Adept',
+    poolBody: '#6e7378', edgeBody: '#4a5560',
+    numColor: function (v) { return v === 1 ? '#e63946' : '#5fc9ef'; }
+  }
+};
+var currentSkin = 'chummer';
 // Draws one die face (background + numeral) onto a small canvas, used as a
 // texture. Doing this in canvas instead of loading image files keeps the
 // whole dice look self-contained in code.
-function faceCanvas(v, body) {
+function faceCanvas(v, body, numColor) {
   var s = 128, c = document.createElement('canvas'); c.width = c.height = s;
   var g = c.getContext('2d');
   g.fillStyle = body; g.fillRect(0, 0, s, s);
   var gr = g.createRadialGradient(s / 2, s / 2, s * 0.25, s / 2, s / 2, s * 0.78);
   gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.14)');
   g.fillStyle = gr; g.fillRect(0, 0, s, s); // subtle vignette so faces aren't flat-looking
-  g.fillStyle = v === 1 ? '#e0242a' : (v >= 5 ? '#2fd117' : '#f5a30f'); // 1 = red, 5/6 = green (hits), else amber
+  g.fillStyle = numColor;
   g.font = 'bold 92px "Arial Narrow", Arial, Helvetica, sans-serif';
   g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillText(String(v), s * (v === 6 ? 0.45 : 0.5), s * 0.54);
   if (v === 6) { g.beginPath(); g.arc(s * 0.78, s * 0.8, 6, 0, Math.PI * 2); g.fill(); } // extra dot so "6" can't be misread as "9" upside down
   return c;
 }
-// Builds the 6 face materials (in FACE_VALUES order) for one die "skin" body color.
-function makeMats(body) {
+// Builds the 6 face materials (in FACE_VALUES order) for one die body color,
+// using the given skin's numeral-color function.
+function makeMats(body, numColorFn) {
   return FACE_VALUES.map(function (v) {
-    var t = new THREE.CanvasTexture(faceCanvas(v, body)); t.anisotropy = maxAniso;
+    var t = new THREE.CanvasTexture(faceCanvas(v, body, numColorFn(v))); t.anisotropy = maxAniso;
     return new THREE.MeshStandardMaterial({ map: t, roughness: 0.8, metalness: 0.0 });
   });
 }
-var matsPool = makeMats('#26282b'), matsEdge = makeMats('#1d2c45'); // pool dice vs. Edge dice get different body colors
+function disposeMats(mats) { mats.forEach(function (m) { m.map.dispose(); m.dispose(); }); }
+var matsPool = makeMats(SKINS[currentSkin].poolBody, SKINS[currentSkin].numColor);
+var matsEdge = makeMats(SKINS[currentSkin].edgeBody, SKINS[currentSkin].numColor); // pool dice vs. Edge dice get different body colors
+// Rebuilds matsPool/matsEdge for the chosen skin, disposes the old
+// textures/materials (THREE doesn't garbage-collect GPU resources on its
+// own), and re-skins every die currently on the table in place - this never
+// touches a die's rolled value or physics state, only its material.
+function applySkin(key) {
+  if (!SKINS[key] || key === currentSkin) return;
+  currentSkin = key;
+  var skin = SKINS[key];
+  var oldPool = matsPool, oldEdge = matsEdge;
+  matsPool = makeMats(skin.poolBody, skin.numColor);
+  matsEdge = makeMats(skin.edgeBody, skin.numColor);
+  disposeMats(oldPool); disposeMats(oldEdge);
+  dice.forEach(function (d) { d.mesh.material = d.src === 'pool' ? matsPool : matsEdge; });
+  dirty = true;
+}
 // Builds a cube geometry with rounded edges/corners (a plain BoxGeometry
 // looks too sharp/plastic). Works by pushing each vertex inward to a
 // "core" cube of half-size `lim`, then back out by the rounding radius `r`
@@ -730,6 +765,7 @@ $('critModeCycle').addEventListener('click', function () {
   applyCritModeLabel();
 });
 $('explodeSixes').addEventListener('change', function () { S.explodeSixes = $('explodeSixes').checked; });
+$('skinSelect').addEventListener('change', function () { applySkin($('skinSelect').value); });
 $('clearLog').addEventListener('click', function () { S.log = []; renderLog(); });
 stage.addEventListener('click', function () { doRoll('normal'); }); // tapping the tray itself also rolls
 document.addEventListener('keydown', function (e) {

@@ -82,6 +82,7 @@ canvas{display:block;width:100%;height:100%}
 .stepper button:hover:not(:disabled){background:var(--line)}
 .stepper input{flex:1;min-width:0;width:100%;border:0;background:transparent;color:var(--fg);text-align:center;font:500 17px var(--mono);height:42px;-moz-appearance:textfield}
 .stepper input::-webkit-outer-spin-button,.stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.select-box{border:1px solid var(--line);border-radius:6px;background:var(--field);color:var(--fg);font:500 15px var(--body);height:42px;padding:0 10px;width:100%}
 .edgebar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:14px}
 .edgebar b{font:600 16px var(--mono)}
 .link{border:1px solid var(--line);background:var(--field);color:var(--fg);border-radius:5px;padding:5px 10px;font:500 12px var(--mono);cursor:pointer}
