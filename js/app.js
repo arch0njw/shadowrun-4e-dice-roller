@@ -23,7 +23,7 @@ var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 // where things stand" - pool/edge/threshold inputs, Edge points remaining,
 // whether a roll is in flight, and the last roll's outcome (needed to know
 // whether Second Chance is currently legal).
-var S = { pool: 9, edge: 3, edgeLeft: 3, thr: 0, busy: false, last: null, count: 0, log: [], forceCrit: false, explodeSixes: false };
+var S = { pool: 9, edge: 3, edgeLeft: 3, thr: 0, busy: false, last: null, count: 0, log: [], anyCrit: false, explodeSixes: false };
 var dice = [];          // all dice currently on the table
 var wave = null;        // dice currently being thrown
 var instantFlag = false;
@@ -373,17 +373,16 @@ function stepWave(dt) {
 // Shadowrun 4e scoring: a hit is any die showing 5 or 6. A glitch is half
 // (rounded down for an odd pool, e.g. 4 of 9) or more of the *original*
 // pool+edge dice (not counting dice spawned by Push the Limit explosions)
-// showing a 1. A glitch with zero hits is a critical glitch. The "force
-// critical glitch" test toggle overrides crit unconditionally, regardless
-// of whether this roll is an actual glitch, so the overlay can be tested
-// on demand instead of waiting for a naturally rare roll.
+// showing a 1. A glitch with zero hits is a critical glitch - or, with the
+// "treat every glitch as critical" house rule enabled, any glitch at all
+// counts as critical.
 function computeResult() {
   var init = dice.filter(function (d) { return d.src !== 'explode'; });
   var ones = init.filter(function (d) { return d.value === 1; }).length;
   var hits = dice.filter(function (d) { return d.value >= 5; }).length;
   var glitch = ones >= Math.floor(init.length / 2);
   return { total: init.length, hits: hits, ones: ones, exploded: dice.length - init.length,
-           glitch: glitch, crit: S.forceCrit || (glitch && hits === 0), thr: S.thr };
+           glitch: glitch, crit: glitch && (hits === 0 || S.anyCrit), thr: S.thr };
 }
 function badge(text, k) {
   var s = document.createElement('span'); s.className = 'badge'; s.dataset.k = k; s.textContent = text; return s;
@@ -555,7 +554,7 @@ $('refresh').addEventListener('click', function () { S.edgeLeft = S.edge; refres
 $('roll').addEventListener('click', function () { doRoll('normal'); });
 $('push').addEventListener('click', function () { doRoll('push'); });
 $('second').addEventListener('click', function () { doRoll('second'); });
-$('forceCrit').addEventListener('change', function () { S.forceCrit = $('forceCrit').checked; });
+$('anyCrit').addEventListener('change', function () { S.anyCrit = $('anyCrit').checked; });
 $('explodeSixes').addEventListener('change', function () { S.explodeSixes = $('explodeSixes').checked; });
 $('clearLog').addEventListener('click', function () { S.log = []; renderLog(); });
 stage.addEventListener('click', function () { doRoll('normal'); }); // tapping the tray itself also rolls
