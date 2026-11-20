@@ -35,7 +35,7 @@
       <section class="card setup" aria-label="Roll setup">
         <div class="fields">
           <div class="field"><label for="pool">Dice pool</label>
-            <div class="stepper"><button type="button" data-t="pool" data-d="-1" aria-label="Fewer dice">&minus;</button><input id="pool" type="number" inputmode="numeric" min="1" max="30" value="9"><button type="button" data-t="pool" data-d="1" aria-label="More dice">+</button></div></div>
+            <div class="stepper"><button type="button" data-t="pool" data-d="-1" aria-label="Fewer dice">&minus;</button><input id="pool" type="number" inputmode="numeric" min="1" max="50" value="9"><button type="button" data-t="pool" data-d="1" aria-label="More dice">+</button></div></div>
           <div class="field"><label for="edge">Edge</label>
             <div class="stepper"><button type="button" data-t="edge" data-d="-1" aria-label="Lower Edge">&minus;</button><input id="edge" type="number" inputmode="numeric" min="0" max="7" value="3"><button type="button" data-t="edge" data-d="1" aria-label="Raise Edge">+</button></div></div>
           <div class="field"><label for="thr">Threshold</label>
@@ -69,7 +69,7 @@
           <li>Second Chance spends 1 Edge and rerolls every die that is not a hit. It is not available after Push the Limit.</li>
         </ul>
         <label for="anyCrit"><input type="checkbox" id="anyCrit"> <span id="critModeLabel">Treat every glitch as critical</span> <button type="button" id="critModeCycle" class="icon-btn" title="Cycle test mode">&#9760;&#65039;</button></label>
-        <label for="explodeSixes"><input type="checkbox" id="explodeSixes"> Sixes explode on every roll, not just Push the Limit</label>
+        <label for="explodeSixes"><input type="checkbox" id="explodeSixes"> <span id="explodeSixesLabel">6s explode every roll, not just Push the Limit</span> <button type="button" id="explodeSixesCycle" class="icon-btn" title="Cycle test mode">&#128561;</button></label>
         <label for="rollRocky"><input type="checkbox" id="rollRocky"> Roll like Rocky</label>
       </details>
 
@@ -80,7 +80,7 @@
       </section>
     </aside>
   </main>
-  <footer class="version">v1.0.9</footer>
+  <footer class="version">v1.0.10</footer>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
