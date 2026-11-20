@@ -1,6 +1,6 @@
 # Shadowrun Dice Roller: Free-Tier Spec Set
 
-Status: draft. This set replaces the AWS design in `../specs`. The baseline in `../specs/00-current-state.md` is unchanged and still describes the implementation these stories start from.
+Status: draft. This set replaces an earlier AWS design that lived outside this repo and was never brought in alongside it; `../specs/00-current-state.md` does not exist here. [00-current-state.md](00-current-state.md) is the real, in-repo baseline these stories start from.
 
 ## Goal and constraints
 
@@ -34,7 +34,7 @@ flowchart LR
 
 | # | Spec | Delivers | Effort |
 | :--- | :--- | :--- | :--- |
-| 00 | `../specs/00-current-state.md` | Baseline, unchanged | n/a |
+| 00 | [Current state](00-current-state.md) | Baseline, as shipped on `main` | n/a |
 | 01 | [Free platform](01-free-platform-github-cloudflare.md) | Repo, build, Worker, D1, Durable Object echo test, CI/CD | M |
 | 02 | [Google sign-in and roles](02-google-sign-in-and-roles.md) | Sign-in spike, invite-only auth, users and roles, admin bootstrap | M |
 | 03 | [User profiles](03-user-profiles.md) | Stored profile, profile page | S |
@@ -118,6 +118,6 @@ Estimated use, to be measured in story 10. A roll in a team of 6 is about 3 inco
 | Does the GM visibility toggle reset after each roll? | Yes, back to hidden. |
 | Expected scale | Under 50 users, under 10 per team, under 5 active teams at once. |
 
-## Carried over unchanged from the AWS set
+## Baseline for roll rules, glitch logic and skins
 
-Roll rules, glitch and critical glitch logic, skin definitions and launch skins, permission matrices, role semantics, hidden-roll rules, 30 day retention, and the privacy statements. Where a story below says "as in" an AWS spec, the rule is the same and only the storage or transport changes.
+[00-current-state.md](00-current-state.md) is the source of truth for roll rules, glitch and critical glitch logic, and the two skins (`chummer`, `adept`) that already exist client-side. These have changed since this design set was first drafted (notably: the glitch threshold rounds down, not up or exact-half; a testing-only critical-glitch mode cycler exists; `chummer`/`adept` are a de facto head start on story 04's `shadowrun-black`/`slate-signal`). Permission matrices, role semantics, hidden-roll rules, 30 day retention, and the privacy statements are not implemented anywhere yet and remain as drafted in stories 02-10.

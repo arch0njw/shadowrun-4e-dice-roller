@@ -4,7 +4,7 @@ Status: draft. Depends on: 03. Used by: 07 (spectators render the roller's skin)
 
 ## Goal
 
-Replace the hard-coded dice look with a data-driven skin system, ship five skins, and let each user pick one. This story is almost entirely client work and is the same as `../specs/04-skins.md`. Only the differences are listed here, followed by a compact restatement so this set stands alone.
+Replace the hard-coded dice look with a data-driven skin system, ship five skins, and let each user pick one. This story is almost entirely client work. Two of the five launch skins already exist as a hardcoded dropdown (see [00-current-state.md](00-current-state.md)): `chummer` matches `shadowrun-black`'s palette and `adept` matches `slate-signal`'s. This story's real new work is making the skin system data-driven (JSON + `/api/skins` + per-user persistence) and designing the remaining three skins (`cobalt-gold`, `smoke-white`, `classic-pips`) - not re-deriving the first two palettes from scratch.
 
 ## Differences from the AWS 04
 
@@ -12,21 +12,21 @@ Replace the hard-coded dice look with a data-driven skin system, ship five skins
 - `skin_id` is stored in the D1 `profiles` table (03). `PATCH /api/me` validates it against the build-time list.
 - Skin definitions and glyph assets are bundled with the client. No extra hosting.
 
-## Skin definition (unchanged)
+## Skin definition
 
 JSON files in `/shared/skins/` with `id`, `name`, `version`, `body` (color, roughness, metalness, opacity), `edgeBody` (color for Edge and exploded dice), and `face` (`style` numeral or pips, `glyphSet`, per-value `colors`, `sixDot`, `inset`).
 
 A build script validates every skin against the zod schema and checks a 3:1 contrast ratio between each numeral color and its body color.
 
-## Launch skins (unchanged)
+## Launch skins
 
-| id | Name | Look |
-| :--- | :--- | :--- |
-| `shadowrun-black` | Shadowrun Black | Black body, 1 red, 2 to 4 amber, 5 and 6 green. Default. |
-| `cobalt-gold` | Cobalt Gold | Translucent deep blue body, yellow numerals. |
-| `smoke-white` | Smoke White | Black body, white numerals. |
-| `slate-signal` | Slate Signal | Dark grey-green body, 1 red-orange, 2 to 4 black engraved with a light inset outline, 5 and 6 sky blue. |
-| `classic-pips` | Classic Pips | Ivory body with pips, orange on 5 and 6, red large pip on 1. |
+| id | Name | Look | Status |
+| :--- | :--- | :--- | :--- |
+| `shadowrun-black` | Shadowrun Black | Black body, 1 red, 2 to 4 amber, 5 and 6 green. Default. | Matches shipped `chummer` skin - port palette, add glyph set. |
+| `cobalt-gold` | Cobalt Gold | Translucent deep blue body, yellow numerals. | Not built. |
+| `smoke-white` | Smoke White | Black body, white numerals. | Not built. |
+| `slate-signal` | Slate Signal | Dark grey-green body, 1 red-orange, 2 to 4 black engraved with a light inset outline, 5 and 6 sky blue. | Matches shipped `adept` skin - port palette, add glyph set. |
+| `classic-pips` | Classic Pips | Ivory body with pips, orange on 5 and 6, red large pip on 1. | Not built. |
 
 ## Glyph set `sr-square`
 
@@ -44,7 +44,7 @@ Profile page section "Dice": radio-group grid of skin cards with a small preview
 
 ## Acceptance criteria
 
-1. `shadowrun-black` matches the current draft apart from the new glyph set.
+1. `shadowrun-black` matches the shipped `chummer` palette apart from the new glyph set.
 2. All five skins render with readable numerals at phone width.
 3. Changing skins updates dice on the table without re-rolling or changing results.
 4. Reloading restores the skin from the profile on any device.
