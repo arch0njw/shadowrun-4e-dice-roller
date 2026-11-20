@@ -23,7 +23,7 @@ var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 // where things stand" - pool/edge/threshold inputs, Edge points remaining,
 // whether a roll is in flight, and the last roll's outcome (needed to know
 // whether Second Chance is currently legal).
-var S = { pool: 9, edge: 3, edgeLeft: 3, thr: 0, busy: false, last: null, count: 0, log: [], anyCrit: false };
+var S = { pool: 9, edge: 3, edgeLeft: 3, thr: 0, busy: false, last: null, count: 0, log: [], anyCrit: false, explodeSixes: false };
 var dice = [];          // all dice currently on the table
 var wave = null;        // dice currently being thrown
 var instantFlag = false;
@@ -370,30 +370,45 @@ function stepWave(dt) {
 }
 
 /* ---------- results ---------- */
-// Shadowrun 4e scoring: a hit is any die showing 5 or 6. A glitch is more
-// than half of the *original* pool+edge dice (not counting dice spawned by
-// Push the Limit explosions) showing a 1. A glitch with zero hits is a
-// critical glitch - or, with the "treat every glitch as critical" house
-// rule enabled, any glitch at all counts as critical.
+// Shadowrun 4e scoring: a hit is any die showing 5 or 6. A glitch is half or
+// more of the *original* pool+edge dice (not counting dice spawned by Push
+// the Limit explosions) showing a 1. A glitch with zero hits is a critical
+// glitch - or, with the "treat every glitch as critical" house rule
+// enabled, any glitch at all counts as critical.
 function computeResult() {
   var init = dice.filter(function (d) { return d.src !== 'explode'; });
   var ones = init.filter(function (d) { return d.value === 1; }).length;
   var hits = dice.filter(function (d) { return d.value >= 5; }).length;
-  var glitch = ones * 2 > init.length;
+  var glitch = ones * 2 >= init.length;
   return { total: init.length, hits: hits, ones: ones, exploded: dice.length - init.length,
            glitch: glitch, crit: glitch && (hits === 0 || S.anyCrit), thr: S.thr };
 }
 function badge(text, k) {
   var s = document.createElement('span'); s.className = 'badge'; s.dataset.k = k; s.textContent = text; return s;
 }
+// Flashes the "Critical Glitch" overlay over the dice tray and auto-dismisses
+// it a couple seconds later. Restarts the CSS animation from scratch even if
+// it's already mid-flash (back-to-back critical glitches), via the classic
+// remove-class/reflow/re-add-class trick.
+var critOverlayTimer = null;
+function showCritOverlay() {
+  var el = $('critOverlay');
+  clearTimeout(critOverlayTimer);
+  el.classList.remove('show'); void el.offsetWidth; // force reflow so the animation restarts
+  el.classList.add('show');
+  critOverlayTimer = setTimeout(function () { el.classList.remove('show'); }, 2200);
+}
 // Updates the result card: the big hit count, the dice/ones/exploded tallies,
 // and the badge row (glitch state, plus a pass/fail-vs-threshold badge if a
-// threshold was set).
+// threshold was set). Also tags the hits number itself (`has-glitch`) so a
+// glitch is visible even if you only glance at the big number and skip the
+// badges, and fires the critical-glitch overlay.
 function renderResult(r) {
   $('hitsNum').textContent = r ? r.hits : '0';
   $('fDice').textContent = r ? r.total : '0';
   $('fOnes').textContent = r ? r.ones : '0';
   $('fEx').textContent = r ? r.exploded : '0';
+  $('hitsBox').classList.toggle('has-glitch', !!(r && r.glitch));
   var b = $('badges'); b.textContent = '';
   if (!r) return;
   b.appendChild(r.crit ? badge('Critical glitch', 'crit') : r.glitch ? badge('Glitch', 'glitch') : badge('No glitch', 'none'));
@@ -402,6 +417,7 @@ function renderResult(r) {
     else if (r.hits >= r.thr) b.appendChild(badge('Success, ' + (r.hits - r.thr) + ' net, threshold ' + r.thr, 'ok'));
     else b.appendChild(badge('Failed by ' + (r.thr - r.hits) + ', threshold ' + r.thr, 'fail'));
   }
+  if (r.crit) showCritOverlay();
 }
 // Rebuilds the roll-history list from S.log (most recent roll first - see doRoll).
 function renderLog() {
@@ -411,7 +427,8 @@ function renderLog() {
     var n = document.createElement('span'); n.className = 'n'; n.textContent = '#' + e.n;
     var l = document.createElement('span'); l.textContent = e.label;
     var h = document.createElement('span'); h.className = 'h'; h.textContent = e.hits + (e.hits === 1 ? ' hit' : ' hits');
-    li.appendChild(n); li.appendChild(l); li.appendChild(h);
+    var o = document.createElement('span'); o.className = 'o'; o.textContent = e.ones + (e.ones === 1 ? ' glitch' : ' glitches');
+    li.appendChild(n); li.appendChild(l); li.appendChild(h); li.appendChild(o);
     if (e.crit || e.glitch) {
       var g = document.createElement('span'); g.className = 'g'; g.textContent = e.crit ? 'Critical glitch' : 'Glitch'; li.appendChild(g);
     }
@@ -443,6 +460,18 @@ function refreshUI() {
   $('status').hidden = !b;
   stage.style.cursor = b ? 'progress' : 'pointer';
 }
+// Every 6 in `list` explodes into one more die, repeating until a wave rolls
+// no sixes (or we hit a safety cap on waves/total dice). Used by Push the
+// Limit always, and by a plain roll too when the "sixes explode on every
+// roll" toggle is on.
+async function runExplosions(list) {
+  var ex = list.filter(function (d) { return d.value === 6; }).length, guard = 0;
+  while (ex > 0 && guard < 12 && dice.length < 160) {
+    var more = spawnDice(new Array(ex).fill('explode'));
+    await startWave(more); decorate(more);
+    ex = more.filter(function (d) { return d.value === 6; }).length; guard++;
+  }
+}
 // Runs one full roll: 'normal' (just the pool), 'push' (pool + Edge dice,
 // with sixes exploding into extra waves), or 'second' (reroll every current
 // miss). Each case ends by computing and rendering the result and appending
@@ -473,23 +502,14 @@ async function doRoll(mode, opts) {
       if (mode === 'push') { S.edgeLeft--; for (var j = 0; j < S.edge; j++) list.push('edge'); }
       var first = spawnDice(list);
       await startWave(first); decorate(first);
-      if (mode === 'push') {
-        // Push the Limit: every 6 explodes into one more die, repeating until
-        // a wave rolls no sixes (or we hit a safety cap on waves/total dice).
-        var ex = first.filter(function (d) { return d.value === 6; }).length, guard = 0;
-        while (ex > 0 && guard < 12 && dice.length < 160) {
-          var more = spawnDice(new Array(ex).fill('explode'));
-          await startWave(more); decorate(more);
-          ex = more.filter(function (d) { return d.value === 6; }).length; guard++;
-        }
-      }
+      if (mode === 'push' || S.explodeSixes) await runExplosions(first);
       S.last = { mode: mode, second: false };
       label = mode === 'push' ? S.pool + '+' + S.edge + 'd6 Push the Limit' : S.pool + 'd6';
     }
     var r = computeResult();
     renderResult(r);
     S.count++;
-    S.log.unshift({ n: S.count, label: label + (opts.sample ? ' (sample)' : ''), hits: r.hits, glitch: r.glitch, crit: r.crit });
+    S.log.unshift({ n: S.count, label: label + (opts.sample ? ' (sample)' : ''), hits: r.hits, ones: r.ones, glitch: r.glitch, crit: r.crit });
     S.log = S.log.slice(0, 40); // cap log length so it doesn't grow unbounded over a long session
     renderLog();
   } finally {
@@ -534,6 +554,7 @@ $('roll').addEventListener('click', function () { doRoll('normal'); });
 $('push').addEventListener('click', function () { doRoll('push'); });
 $('second').addEventListener('click', function () { doRoll('second'); });
 $('anyCrit').addEventListener('change', function () { S.anyCrit = $('anyCrit').checked; });
+$('explodeSixes').addEventListener('change', function () { S.explodeSixes = $('explodeSixes').checked; });
 $('clearLog').addEventListener('click', function () { S.log = []; renderLog(); });
 stage.addEventListener('click', function () { doRoll('normal'); }); // tapping the tray itself also rolls
 document.addEventListener('keydown', function (e) {
