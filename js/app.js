@@ -23,7 +23,7 @@ var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 // where things stand" - pool/edge/threshold inputs, Edge points remaining,
 // whether a roll is in flight, and the last roll's outcome (needed to know
 // whether Second Chance is currently legal).
-var S = { pool: 9, edge: 3, edgeLeft: 3, thr: 0, busy: false, last: null, count: 0, log: [], anyCrit: false, explodeSixes: false };
+var S = { pool: 9, edge: 3, edgeLeft: 3, thr: 0, busy: false, last: null, count: 0, log: [], anyCrit: false, explodeSixes: false, violent: false };
 // The "Treat every glitch as critical" checkbox (S.anyCrit) still gates
 // whether any of this applies; the skull button next to it cycles which of
 // three interpretations gets applied when checked - see CRIT_MODES and
@@ -344,9 +344,12 @@ function spawnDice(srcs, opts) {
     body.allowSleep = true; body.sleepSpeedLimit = 0.4; body.sleepTimeLimit = 0.4;
     body.position.set(alongX ? along : cross, y, alongX ? cross : along);
     body.quaternion.setFromEuler(rnd(0, 6.28), rnd(0, 6.28), rnd(0, 6.28), 'XYZ'); // random starting orientation
-    var sp = rnd(14, 24), cv = rnd(-2.5, 2.5);               // throw speed along the arena, small sideways drift
-    body.velocity.set(alongX ? -sp : cv, rnd(1, 4), alongX ? cv : -sp);
-    body.angularVelocity.set(rnd(-25, 25), rnd(-25, 25), rnd(-25, 25)); // tumble spin
+    // "Roll like Rocky": as violent a throw as the physics can take without
+    // dice regularly clipping through the walls.
+    var sp = rnd(14, 24) * (S.violent ? 2.4 : 1), cv = rnd(-2.5, 2.5) * (S.violent ? 3 : 1);
+    var up = S.violent ? rnd(7, 15) : rnd(1, 4), spin = S.violent ? rnd(55, 90) : rnd(-25, 25);
+    body.velocity.set(alongX ? -sp : cv, up, alongX ? cv : -sp);
+    body.angularVelocity.set(rnd(-spin, spin), rnd(-spin, spin), rnd(-spin, spin)); // tumble spin
     world.addBody(body);
     var mesh = new THREE.Mesh(dieGeo, src === 'pool' ? matsPool : matsEdge);
     mesh.castShadow = true;
@@ -805,6 +808,7 @@ $('critModeCycle').addEventListener('click', function () {
   applyCritModeLabel();
 });
 $('explodeSixes').addEventListener('change', function () { S.explodeSixes = $('explodeSixes').checked; });
+$('rollRocky').addEventListener('change', function () { S.violent = $('rollRocky').checked; });
 $('skinSelect').addEventListener('change', function () { applySkin($('skinSelect').value); });
 $('clearLog').addEventListener('click', function () { S.log = []; renderLog(); });
 stage.addEventListener('click', function () { doRoll('normal'); }); // tapping the tray itself also rolls
