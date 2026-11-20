@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Shadowrun Dice Roller</title>
+<title>Shadowrun Dice Roller - 4th Edition</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="css/styles.css">
@@ -41,6 +41,12 @@
           <div class="field"><label for="thr">Threshold</label>
             <div class="stepper"><button type="button" data-t="thr" data-d="-1" aria-label="Lower threshold">&minus;</button><input id="thr" type="number" inputmode="numeric" min="0" max="20" value="0"><button type="button" data-t="thr" data-d="1" aria-label="Raise threshold">+</button></div></div>
         </div>
+        <div class="field"><label for="skinSelect">Dice Set</label>
+          <select id="skinSelect" class="select-box">
+            <option value="chummer">Chummer</option>
+            <option value="adept">Adept</option>
+          </select>
+        </div>
         <div class="edgebar">
           <span>Edge points left <b id="edgeLeft">3</b> of <span id="edgeMax">3</span></span>
           <button class="link" type="button" id="refresh">Refresh Edge</button>
@@ -73,7 +79,7 @@
       </section>
     </aside>
   </main>
-  <footer class="version">v1.0.6</footer>
+  <footer class="version">v1.0.7</footer>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
