@@ -14,6 +14,7 @@
     <section class="stage" id="stage" aria-label="Dice tray. Tap to roll the current pool.">
       <canvas id="c"></canvas>
       <div class="status" id="status" hidden>Rolling</div>
+      <div class="crit-overlay" id="critOverlay" aria-live="assertive"><span>Critical Glitch</span></div>
       <div class="legend" aria-hidden="true">
         <span><i class="hit"></i>Hit (5, 6)</span>
         <span><i class="one"></i>One</span>
@@ -22,7 +23,7 @@
     </section>
     <aside class="panel">
       <section class="card result" aria-live="polite" aria-label="Roll result">
-        <div class="hits"><span id="hitsNum">0</span><span class="unit">hits</span></div>
+        <div class="hits" id="hitsBox"><span id="hitsNum">0</span><span class="unit">hits</span></div>
         <div class="badges" id="badges"></div>
         <dl class="facts">
           <div><dt>Dice</dt><dd id="fDice">0</dd></div>
@@ -56,7 +57,7 @@
         <summary>Rules used</summary>
         <ul>
           <li>A hit is a 5 or a 6.</li>
-          <li>A glitch is more than half of the starting dice showing 1. A glitch with no hits is a critical glitch.</li>
+          <li>A glitch is half or more of the starting dice showing 1. A glitch with no hits is a critical glitch.</li>
           <li>Push the Limit spends 1 Edge and adds your Edge rating in dice. Every 6 is rerolled and the new die counts too, repeating. Exploded dice are not counted for glitches.</li>
           <li>Second Chance spends 1 Edge and rerolls every die that is not a hit. It is not available after Push the Limit.</li>
           <li>Dice are simulated physically. The result is the face pointing up once they stop.</li>

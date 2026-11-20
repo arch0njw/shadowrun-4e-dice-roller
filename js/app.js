@@ -370,30 +370,45 @@ function stepWave(dt) {
 }
 
 /* ---------- results ---------- */
-// Shadowrun 4e scoring: a hit is any die showing 5 or 6. A glitch is more
-// than half of the *original* pool+edge dice (not counting dice spawned by
-// Push the Limit explosions) showing a 1. A glitch with zero hits is a
-// critical glitch - or, with the "treat every glitch as critical" house
-// rule enabled, any glitch at all counts as critical.
+// Shadowrun 4e scoring: a hit is any die showing 5 or 6. A glitch is half or
+// more of the *original* pool+edge dice (not counting dice spawned by Push
+// the Limit explosions) showing a 1. A glitch with zero hits is a critical
+// glitch - or, with the "treat every glitch as critical" house rule
+// enabled, any glitch at all counts as critical.
 function computeResult() {
   var init = dice.filter(function (d) { return d.src !== 'explode'; });
   var ones = init.filter(function (d) { return d.value === 1; }).length;
   var hits = dice.filter(function (d) { return d.value >= 5; }).length;
-  var glitch = ones * 2 > init.length;
+  var glitch = ones * 2 >= init.length;
   return { total: init.length, hits: hits, ones: ones, exploded: dice.length - init.length,
            glitch: glitch, crit: glitch && (hits === 0 || S.anyCrit), thr: S.thr };
 }
 function badge(text, k) {
   var s = document.createElement('span'); s.className = 'badge'; s.dataset.k = k; s.textContent = text; return s;
 }
+// Flashes the "Critical Glitch" overlay over the dice tray and auto-dismisses
+// it a couple seconds later. Restarts the CSS animation from scratch even if
+// it's already mid-flash (back-to-back critical glitches), via the classic
+// remove-class/reflow/re-add-class trick.
+var critOverlayTimer = null;
+function showCritOverlay() {
+  var el = $('critOverlay');
+  clearTimeout(critOverlayTimer);
+  el.classList.remove('show'); void el.offsetWidth; // force reflow so the animation restarts
+  el.classList.add('show');
+  critOverlayTimer = setTimeout(function () { el.classList.remove('show'); }, 2200);
+}
 // Updates the result card: the big hit count, the dice/ones/exploded tallies,
 // and the badge row (glitch state, plus a pass/fail-vs-threshold badge if a
-// threshold was set).
+// threshold was set). Also tags the hits number itself (`has-glitch`) so a
+// glitch is visible even if you only glance at the big number and skip the
+// badges, and fires the critical-glitch overlay.
 function renderResult(r) {
   $('hitsNum').textContent = r ? r.hits : '0';
   $('fDice').textContent = r ? r.total : '0';
   $('fOnes').textContent = r ? r.ones : '0';
   $('fEx').textContent = r ? r.exploded : '0';
+  $('hitsBox').classList.toggle('has-glitch', !!(r && r.glitch));
   var b = $('badges'); b.textContent = '';
   if (!r) return;
   b.appendChild(r.crit ? badge('Critical glitch', 'crit') : r.glitch ? badge('Glitch', 'glitch') : badge('No glitch', 'none'));
@@ -402,6 +417,7 @@ function renderResult(r) {
     else if (r.hits >= r.thr) b.appendChild(badge('Success, ' + (r.hits - r.thr) + ' net, threshold ' + r.thr, 'ok'));
     else b.appendChild(badge('Failed by ' + (r.thr - r.hits) + ', threshold ' + r.thr, 'fail'));
   }
+  if (r.crit) showCritOverlay();
 }
 // Rebuilds the roll-history list from S.log (most recent roll first - see doRoll).
 function renderLog() {
