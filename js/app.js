@@ -34,6 +34,17 @@ var CRIT_MODES = [
   { key: 'oneCrit', label: 'Treat every 1 as critical' }
 ];
 var critModeIndex = 0;
+// Same cycling-label pattern as CRIT_MODES, but for the "sixes explode"
+// checkbox: the emoji button cycles which of two interpretations applies
+// when the checkbox is checked. 'forceSix' is a test aid - it guarantees
+// every wave (initial roll and every explosion wave) has at least one 6, so
+// chained explosions can be driven deliberately up to HIT_CAP/BOARD_CAP
+// instead of waiting on random luck. See forceSixActive() and forceSix().
+var EXPLODE_MODES = [
+  { key: 'normal', html: '6s explode every roll, not just Push the Limit' },
+  { key: 'forceSix', html: '6s explode every roll, <strong>and always roll at least one 6</strong>' }
+];
+var explodeModeIndex = 0;
 var dice = [];          // all dice currently on the table
 var wave = null;        // dice currently being thrown
 var instantFlag = false;
@@ -515,6 +526,22 @@ function decorate(list) {
   });
   dirty = true;
 }
+// Is the "force six" test mode currently in effect? Both the checkbox and
+// the emoji-cycled sub-mode have to agree, same as the crit-mode checkbox.
+function forceSixActive() { return S.explodeSixes && EXPLODE_MODES[explodeModeIndex].key === 'forceSix'; }
+// If none of `list` already shows a 6, snaps one die (picked arbitrarily -
+// this is a test aid, not a game rule) to show 6 face-up, re-reads its
+// value, and refreshes its ring decal. Used so a chained explosion can be
+// driven deliberately instead of waiting on random luck for a 6.
+function forceSix(list) {
+  if (!list.length || list.some(function (d) { return d.value === 6; })) return;
+  var d = list[0];
+  d.body.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), Math.PI); // local -Y (value 6) now points world +Y
+  d.mesh.quaternion.copy(d.body.quaternion);
+  d.value = 6;
+  if (d.ring) { scene.remove(d.ring); d.ring = null; }
+  decorate([d]);
+}
 
 /* ---------- throwing and settling ---------- */
 // A "wave" is one batch of dice thrown together (the initial pool+edge roll,
@@ -699,11 +726,17 @@ var HIT_CAP = 30;
 function liveHits() { return bankedHits + dice.filter(function (d) { return d.value >= 5; }).length; }
 async function runExplosions(list) {
   var ex = list.filter(function (d) { return d.value === 6; }).length, guard = 0;
-  while (ex > 0 && guard < 12 && dice.length < BOARD_CAP && liveHits() < HIT_CAP) {
+  // guard is a last-resort backstop against an infinite loop (e.g. a bug
+  // that makes liveHits() never advance) - HIT_CAP and BOARD_CAP are the
+  // real, meaningful stopping conditions and should always trip first. A
+  // worst case of one forced 6 per wave needs dozens of waves to reach
+  // HIT_CAP, so this has to stay well above that, not a tight safety value.
+  while (ex > 0 && guard < 200 && dice.length < BOARD_CAP && liveHits() < HIT_CAP) {
     var clearFrom = await rackDiceLeft(dice.slice());
     trimBoard();
     var more = spawnDice(new Array(ex).fill('explode'), { crossMin: clearFrom });
     await startWave(more); decorate(more);
+    if (forceSixActive()) forceSix(more);
     ex = more.filter(function (d) { return d.value === 6; }).length; guard++;
   }
 }
@@ -738,6 +771,7 @@ async function doRoll(mode, opts) {
       if (mode === 'push') { S.edgeLeft--; for (var j = 0; j < S.edge; j++) list.push('edge'); }
       var first = spawnDice(list);
       await startWave(first); decorate(first);
+      if (forceSixActive()) forceSix(first);
       if (mode === 'push' || S.explodeSixes) await runExplosions(first);
       S.last = { mode: mode, second: false };
       var diceCount = mode === 'push' ? S.pool + '+' + S.edge + 'd6' : S.pool + 'd6';
@@ -745,6 +779,7 @@ async function doRoll(mode, opts) {
       var trueTotal = dice.length + bankedExploded; // includes dice already trimmed off the board
       var expl = trueTotal > initialTotal ? ' (expl: ' + trueTotal + 'd6)' : '';
       label = diceCount + expl + (mode === 'push' ? ' Push the Limit' : '');
+      if (forceSixActive()) label += ' ALWAYS ROLL A 6 IS ENABLED';
     }
     var r = computeResult();
     renderResult(r);
@@ -773,7 +808,7 @@ function setEdge(newEdge) {
   S.edge = newEdge;
   S.edgeLeft = clamp(S.edgeLeft + (newEdge - old), 0, newEdge);
 }
-$('pool').addEventListener('input', function () { S.pool = readField('pool', 1, 30, S.pool); refreshUI(); });
+$('pool').addEventListener('input', function () { S.pool = readField('pool', 1, 50, S.pool); refreshUI(); });
 $('edge').addEventListener('input', function () { setEdge(readField('edge', 0, 7, S.edge)); refreshUI(); });
 $('thr').addEventListener('input', function () { S.thr = readField('thr', 0, 20, S.thr); });
 // On blur/change, snap each field's displayed value back to the (possibly
@@ -808,6 +843,16 @@ $('critModeCycle').addEventListener('click', function () {
   applyCritModeLabel();
 });
 $('explodeSixes').addEventListener('change', function () { S.explodeSixes = $('explodeSixes').checked; });
+// Same nested-button pattern as the skull/crit-mode cycler above.
+function applyExplodeModeLabel() {
+  var m = EXPLODE_MODES[explodeModeIndex];
+  $('explodeSixesLabel').innerHTML = m.html;
+  $('explodeSixesCycle').setAttribute('aria-label', 'Test mode: ' + m.html.replace(/<[^>]+>/g, '') + '. Click to cycle.');
+}
+$('explodeSixesCycle').addEventListener('click', function () {
+  explodeModeIndex = (explodeModeIndex + 1) % EXPLODE_MODES.length;
+  applyExplodeModeLabel();
+});
 $('rollRocky').addEventListener('change', function () { S.violent = $('rollRocky').checked; });
 $('skinSelect').addEventListener('change', function () { applySkin($('skinSelect').value); });
 $('clearLog').addEventListener('click', function () { S.log = []; renderLog(); });
@@ -859,7 +904,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-applyTheme(); resize(); refreshUI(); renderLog(); applyCritModeLabel();
+applyTheme(); resize(); refreshUI(); renderLog(); applyCritModeLabel(); applyExplodeModeLabel();
 requestAnimationFrame(frame);
 doRoll('normal', { instant: true, sample: true }); // show a result immediately on load, with no animation
 })();
