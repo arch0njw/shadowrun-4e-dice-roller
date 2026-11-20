@@ -84,8 +84,44 @@ world.addBody(floorBody);
 var arena = { aw: 19, ad: 12, ratio: 0 }; // aw/ad = arena width/depth in tray units
 var walls = [];
 var arenaGroup = new THREE.Group(); scene.add(arenaGroup);
-var floorMat = new THREE.MeshStandardMaterial({ color: 0x22323c, roughness: 0.95 });
+// A faint circuit-board pattern (grid lines, a few traces, via dots) baked
+// into a repeating canvas texture, for a Shadowrun-ish tech feel on the
+// tray floor. Drawn in white so it's purely a brightness map - floorMat's
+// own color (set per-theme in applyTheme) tints it, the same trick faceCanvas
+// uses for dice faces.
+function feltTileCanvas() {
+  var s = 256, c = document.createElement('canvas'); c.width = c.height = s;
+  var g = c.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, s, s);
+  g.strokeStyle = 'rgba(0,0,0,0.10)'; g.lineWidth = 1;
+  for (var i = 0; i <= s; i += 32) {
+    g.beginPath(); g.moveTo(i, 0); g.lineTo(i, s); g.stroke();
+    g.beginPath(); g.moveTo(0, i); g.lineTo(s, i); g.stroke();
+  }
+  g.strokeStyle = 'rgba(0,0,0,0.22)'; g.lineWidth = 2;
+  function trace(pts) {
+    g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+    pts.slice(1).forEach(function (p) { g.lineTo(p[0], p[1]); });
+    g.stroke();
+  }
+  var traces = [[[32, 0], [32, 64], [96, 64], [96, 160]], [[224, 256], [224, 192], [160, 192], [160, 96]], [[0, 200], [64, 200], [64, 128]]];
+  traces.forEach(trace);
+  g.fillStyle = 'rgba(0,0,0,0.3)';
+  traces.forEach(function (pts) {
+    pts.forEach(function (p) { g.beginPath(); g.arc(p[0], p[1], 2.6, 0, Math.PI * 2); g.fill(); });
+  });
+  return c;
+}
+var feltTex = new THREE.CanvasTexture(feltTileCanvas());
+feltTex.wrapS = feltTex.wrapT = THREE.RepeatWrapping;
+feltTex.anisotropy = maxAniso;
+var floorMat = new THREE.MeshStandardMaterial({ color: 0x22323c, roughness: 0.95, map: feltTex });
 var rimMat = new THREE.MeshStandardMaterial({ color: 0x35495a, roughness: 0.8 });
+// Thin glowing trim along the rim's inner top edge, in the page's accent
+// color - unlit (MeshBasicMaterial) so it reads as a neon line rather than
+// a lit surface, echoing the accent color already used on buttons/focus
+// rings elsewhere in the UI.
+var accentMat = new THREE.MeshBasicMaterial({ color: 0xf2a93b });
 
 // Adds one static (immovable) box-shaped physics wall; `h*` are half-extents.
 function addWall(hx, hy, hz, x, y, z) {
@@ -112,6 +148,7 @@ function buildArena(ratio) {
   arenaGroup.children.slice().forEach(function (m) { arenaGroup.remove(m); m.geometry.dispose(); });
   var floor = new THREE.Mesh(new THREE.PlaneGeometry(arena.aw, arena.ad), floorMat);
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; arenaGroup.add(floor);
+  feltTex.repeat.set(arena.aw / 4, arena.ad / 4); // keep the circuit-tile grain a consistent size regardless of arena size
   // Visible rim trim (purely cosmetic - the physics walls above are invisible
   // and slightly further out than this trim geometry).
   var t = 0.7, h = 0.6;
@@ -119,6 +156,20 @@ function buildArena(ratio) {
    [t, h, arena.ad, hw + t / 2, 0], [t, h, arena.ad, -hw - t / 2, 0]].forEach(function (r) {
     var m = new THREE.Mesh(new THREE.BoxGeometry(r[0], r[1], r[2]), rimMat);
     m.position.set(r[3], h / 2, r[4]); arenaGroup.add(m);
+  });
+  // Thin neon accent line along the rim's inner top edge, right where the
+  // rim meets the floor - the one bit of color-matched "tech" styling on an
+  // otherwise unlit, purely cosmetic box.
+  var trimH = 0.05, trimD = 0.15;
+  [
+    { geo: [arena.aw + 2 * t, trimH, trimD], pos: [0, h + trimH / 2, hd] },
+    { geo: [arena.aw + 2 * t, trimH, trimD], pos: [0, h + trimH / 2, -hd] },
+    { geo: [trimD, trimH, arena.ad], pos: [hw, h + trimH / 2, 0] },
+    { geo: [trimD, trimH, arena.ad], pos: [-hw, h + trimH / 2, 0] }
+  ].forEach(function (spec) {
+    var m = new THREE.Mesh(new THREE.BoxGeometry(spec.geo[0], spec.geo[1], spec.geo[2]), accentMat);
+    m.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+    arenaGroup.add(m);
   });
   // Re-fit the shadow camera's frustum to the new arena size so shadows stay sharp.
   var ext = Math.max(arena.aw, arena.ad) * 0.85;
@@ -695,6 +746,7 @@ function applyTheme() {
   renderer.setClearColor(new THREE.Color(token('--tray-bg') || '#17222a'));
   floorMat.color.set(token('--felt') || '#22323c');
   rimMat.color.set(token('--rim') || '#35495a');
+  accentMat.color.set(token('--accent') || '#f2a93b');
   dirty = true;
 }
 // Keeps the renderer, camera, and arena shape matched to the stage element's
