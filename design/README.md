@@ -1,6 +1,6 @@
 # Shadowrun Dice Roller: Free-Tier Spec Set
 
-Status: draft. This set replaces an earlier AWS design that lived outside this repo and was never brought in alongside it; `../specs/00-current-state.md` does not exist here. [00-current-state.md](00-current-state.md) is the real, in-repo baseline these stories start from.
+Status: draft. This set replaces an earlier AWS design that lived outside this repo and was never brought in alongside it; `../specs/00-current-state.md` does not exist here. [00-current-state.md](00-current-state.md) is a short pointer explaining that gap - the real, current baseline for rules and behavior is `js/app.js` itself, not a prose doc.
 
 ## Goal and constraints
 
@@ -34,7 +34,7 @@ flowchart LR
 
 | # | Spec | Delivers | Effort |
 | :--- | :--- | :--- | :--- |
-| 00 | [Current state](00-current-state.md) | Baseline, as shipped on `main` | n/a |
+| 00 | [Current state](00-current-state.md) | Why there's no AWS baseline doc; `js/app.js` is the real one | n/a |
 | 01 | [Free platform](01-free-platform-github-cloudflare.md) | Repo, build, Worker, D1, Durable Object echo test, CI/CD | M |
 | 02 | [Google sign-in and roles](02-google-sign-in-and-roles.md) | Sign-in spike, invite-only auth, users and roles, admin bootstrap | M |
 | 03 | [User profiles](03-user-profiles.md) | Stored profile, profile page | S |
@@ -120,4 +120,4 @@ Estimated use, to be measured in story 10. A roll in a team of 6 is about 3 inco
 
 ## Baseline for roll rules, glitch logic and skins
 
-[00-current-state.md](00-current-state.md) is the source of truth for roll rules, glitch and critical glitch logic, and the two skins (`chummer`, `adept`) that already exist client-side. These have changed since this design set was first drafted (notably: the glitch threshold rounds down, not up or exact-half; a testing-only critical-glitch mode cycler exists; `chummer`/`adept` are a de facto head start on story 04's `shadowrun-black`/`slate-signal`). Permission matrices, role semantics, hidden-roll rules, 30 day retention, and the privacy statements are not implemented anywhere yet and remain as drafted in stories 02-10.
+Roll rules, glitch and critical glitch logic, and UI behavior have all changed since this design set was first drafted (e.g. the glitch threshold now rounds down, not up or exact-half; several testing-only toggles exist). `js/app.js`'s own comments are the current, authoritative description - read them directly before any behavior-preserving refactor, rather than relying on a second prose copy that can silently drift (see [00-current-state.md](00-current-state.md)). The one fact worth keeping here: `chummer`/`adept`, already shipped client-side, are a de facto head start on story 04's `shadowrun-black`/`slate-signal` skins. Permission matrices, role semantics, hidden-roll rules, 30 day retention, and the privacy statements are not implemented anywhere yet and remain as drafted in stories 02-10.
